@@ -12,26 +12,31 @@ rudy(Port) ->
     case gen_tcp:listen(Port, Options) of
         {ok, Server} ->
             Parent = self(),
-            spawn_link(fun() -> acceptor(Server, Parent) end),
+            Acceptor = spawn(fun() -> acceptor(Server, Parent) end),
             {ok, ListenPort} = inet:port(Server),
             io:format("Listening on port ~w.~n", [ListenPort]),
-            handler(Server),
-            gen_tcp:close(Server);
+            handler(Acceptor),
+            io:format("Server on port ~w closed.~n", [ListenPort]),
+            gen_tcp:close(Server),
+            io:format("Server on port ~w closed.~n", [ListenPort]);
         {error, Error} ->
             print_error(Error)
     end.
 
 handler(Acceptor) ->
+    io:format("handling~n"),
     receive
         {new_connection, Connection} ->
-            spawn(fun() -> request(Connection) end);
+            spawn(fun() -> request(Connection) end),
+            handler(Acceptor);
         stop ->
             exit(Acceptor, kill);
         Strange ->
-            io:format("Handler received strange message:~n~w~n", [Strange])
-    end,
-    handler(Acceptor).
+            io:format("Handler received strange message:~n~w~n", [Strange]),
+            handler(Acceptor)
+    end.
 
+% A tiny routine that calls blocking gen_tcp:accept() call and forwards it to a parent as a message.
 acceptor(Server, Parent) ->
     case gen_tcp:accept(Server) of
         {ok, Connection} ->
