@@ -16,15 +16,15 @@ rudy(Port) ->
             {ok, ListenPort} = inet:port(Server),
             io:format("Listening on port ~w.~n", [ListenPort]),
             handler(Acceptor),
-            io:format("Server on port ~w closed.~n", [ListenPort]),
             gen_tcp:close(Server),
             io:format("Server on port ~w closed.~n", [ListenPort]);
+        {error, eaddrinuse} ->
+            io:format("~w port is already used, please try another one!~n", [Port]);
         {error, Error} ->
             print_error(Error)
     end.
 
 handler(Acceptor) ->
-    io:format("handling~n"),
     receive
         {new_connection, Connection} ->
             spawn(fun() -> request(Connection) end),
@@ -54,6 +54,8 @@ request(Connection) ->
             Request = parse_request(Str),
             Response = reply(Request),
             gen_tcp:send(Connection, Response);
+        {error, closed} ->
+            ok; % connection will be closed anyway, so it's fine
         {error, Error} ->
             print_error(Error)
     end,
